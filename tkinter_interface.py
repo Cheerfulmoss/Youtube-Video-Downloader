@@ -1,7 +1,7 @@
 from tkinter import ttk, Tk, BooleanVar
 from video_downloader_class import VideoDownloader
-import json
-import threading
+from json import load, dump
+from threading import Thread
 import ctypes
 
 startup_directory = 0
@@ -13,10 +13,10 @@ threads = 5
 def check_preferences():
     download_folder = folder_directory.get()
     with open(settings, "r") as file:
-        preferences = json.load(file)
+        preferences = load(file)
         preferences["download_folder"] = download_folder
         file = open(settings, "w")
-        json.dump(preferences, file)
+        dump(preferences, file)
         file.close()
     return download_folder
 
@@ -47,7 +47,7 @@ def thread_start():
     warning = ctypes.windll.user32.MessageBoxW(0, "Are you sure you want to start the download", "WARNING", 1)
     if warning == 2:
         return
-    t1 = threading.Thread(target=button_download)
+    t1 = Thread(target=button_download)
     t1.start()
 
 
@@ -77,7 +77,7 @@ def decrement_threads():
     thread_label.configure(text=f"Thread count: {threads}")
 
 
-def exit():
+def close_program():
     root.destroy()
 
 
@@ -114,7 +114,7 @@ decrease_thread_count = ttk.Button(frm, text="+", command=increment_threads)
 decrease_thread_count.place(y=30, x=200)
 
 with open(settings, "r") as file:
-    preferences = json.load(file)
+    preferences = load(file)
     directory = preferences["download_folder"]
 
 folder_directory = ttk.Entry(root)
@@ -135,10 +135,10 @@ ffmpeg_state = BooleanVar()
 ffmpeg_button = ttk.Checkbutton(frm, text="FFMPEG", variable=ffmpeg_state)
 ffmpeg_button.place(y=110, x=0)
 thread_count_state = BooleanVar()
-change_thread_count = ttk.Checkbutton(frm, text="Threads", variable=thread_count_state)
+change_thread_count = ttk.Checkbutton(frm, text="Change thread count", variable=thread_count_state)
 change_thread_count.place(y=110, x=80)
 
-quit_button = ttk.Button(frm, text="Quit", command=exit)
+quit_button = ttk.Button(frm, text="Quit", command=close_program)
 quit_button.place(y=60, x=0)
 
 root.mainloop()
