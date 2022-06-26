@@ -22,17 +22,18 @@ def check_preferences():
 
 
 def fast_download():
-    warning = ctypes.windll.user32.MessageBoxW(0, "Fast Download is at maximum 720p, unlike Download which can"
-                                                  " go up to 4K. "
-                                                  "Fast download does not use FFMPEG.\n"
-                                                  "Are you sure you want to start the download?", "WARNING", 1)
-    if warning == 2:
-        return
-
     if thread_count_state.get():
         num_threads = threads
     else:
         num_threads = 5
+    warning = ctypes.windll.user32.MessageBoxW(0, "Fast Download is at maximum 720p, unlike Download which can"
+                                                  " go up to 4K. "
+                                                  "Fast download does not use FFMPEG.\n"
+                                                  f"Thread count: {num_threads}\n"
+                                                  "Are you sure you want to start the download?", "WARNING", 1)
+
+    if warning == 2:
+        return
     download_folder = check_preferences()
     video_url = video_url_box.get()
     video_url_box.delete(0, "end")
