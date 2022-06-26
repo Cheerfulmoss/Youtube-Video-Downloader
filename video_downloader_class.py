@@ -3,7 +3,6 @@ from pytube import YouTube
 import subprocess
 import os
 import threading
-import math
 
 from pytube.exceptions import VideoUnavailable
 
@@ -52,6 +51,7 @@ class VideoDownloader():
         else:
             if high_quality:
                 video_name = str(YouTube(video_url).title)
+                # Video names sometimes have characters that aren't allowed in filenames
                 filename = ""
                 disallowed_character_set = ["<", ">", ":", '"', "/", "\\", "|", "?", "*"]
                 for letter in video_name:
@@ -98,7 +98,6 @@ class VideoDownloader():
             playlist_list = list(playlist_object)
             split_list = [playlist_list[i::num_threads] for i in range(num_threads)]
             threads = []
-            print(split_list)
             for index in range(num_threads):
                 t = threading.Thread(target=self.list_input, args=(split_list[index], audio_set))
                 t.start()
