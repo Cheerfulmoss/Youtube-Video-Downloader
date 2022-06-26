@@ -1,15 +1,14 @@
 from pytube import Playlist
 from pytube import YouTube
-import subprocess
-import os
-import threading
-
+from subprocess import call
+from os import getcwd, remove, rename, replace
+from threading import Thread
 from pytube.exceptions import VideoUnavailable
 
 
 class VideoDownloader():
     def __init__(self, music_folder):
-        self.current_folder = os.getcwd()
+        self.current_folder = getcwd()
         self.music_folder = music_folder
 
     def audio_only_download(self, video_url, download_path, for_merger=False):
@@ -61,11 +60,11 @@ class VideoDownloader():
                 resolution = self.video_only_download(video_url)
                 print(f"{bitrate}\n{resolution}")
                 cmd = f"ffmpeg -i video_input.mp4 -i audio_input.mp4 -c:v copy -c:a aac output.mp4"
-                subprocess.call(cmd, shell=False)
-                os.remove("video_input.mp4")
-                os.remove("audio_input.mp4")
-                os.replace(self.current_folder + "\\output.mp4", self.music_folder + f"\\output.mp4")
-                os.rename(self.music_folder + f"\\output.mp4", self.music_folder + f"\\{filename}.mp4")
+                call(cmd, shell=False)
+                remove("video_input.mp4")
+                remove("audio_input.mp4")
+                replace(self.current_folder + "\\output.mp4", self.music_folder + f"\\output.mp4")
+                rename(self.music_folder + f"\\output.mp4", self.music_folder + f"\\{filename}.mp4")
             else:
                 # This is generally of lower quality or sometimes non-existent.
                 # (22, 720p), (18, 360p).
@@ -97,9 +96,9 @@ class VideoDownloader():
             playlist_object = Playlist(video_url)
             playlist_list = list(playlist_object)
             split_list = [playlist_list[i::num_threads] for i in range(num_threads)]
-            threads = []
+            threads = list()
             for index in range(num_threads):
-                t = threading.Thread(target=self.list_input, args=(split_list[index], audio_set))
+                t = Thread(target=self.list_input, args=(split_list[index], audio_set))
                 t.start()
                 threads.append(t)
         else:
