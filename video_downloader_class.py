@@ -1,7 +1,7 @@
 from pytube import Playlist
 from pytube import YouTube
 from subprocess import call
-from os import getcwd, remove, rename, replace
+from os import getcwd, remove, rename, replace, path
 from threading import Thread
 from pytube.exceptions import VideoUnavailable
 
@@ -59,8 +59,10 @@ class VideoDownloader():
                 bitrate = self.audio_only_download(video_url, download_path=self.current_folder, for_merger=True)
                 resolution = self.video_only_download(video_url)
                 print(f"{bitrate}\n{resolution}")
+                if path.exists("output.mp4"):
+                    remove("output.mp4")
                 cmd = f"ffmpeg -i video_input.mp4 -i audio_input.mp4 -c:v copy -c:a aac output.mp4"
-                call(cmd, shell=False)
+                call(cmd, shell=False, creationflags=0x00000008)
                 remove("video_input.mp4")
                 remove("audio_input.mp4")
                 replace(self.current_folder + "\\output.mp4", self.music_folder + f"\\output.mp4")
