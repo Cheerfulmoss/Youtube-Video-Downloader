@@ -34,7 +34,10 @@ class VideoDownloader():
             self.audio_only_download(video_url, download_path=self.music_folder)
         else:
             if high_quality:
-                video_name = str(YouTube(video_url).title)
+                video_object = YouTube(video_url)
+                video_name = str(video_object.title)
+                video_author = str(video_object.author)
+                video_year = str(video_object.publish_date)
                 # Video names sometimes have characters that aren't allowed in filenames
                 filename = ""
                 disallowed_character_set = ["<", ">", ":", '"', "/", "\\", "|", "?", "*"]
@@ -46,15 +49,14 @@ class VideoDownloader():
                 print(f"{bitrate}\n{resolution}")
                 if path.exists("output.mp4"):
                     remove("output.mp4")
-                cmd = f"ffmpeg -i video_input.mp4 -i audio_input.mp4 -c:v copy -c:a aac output.mp4"
+                cmd = f'ffmpeg -i video_input.mp4 -i audio_input.mp4 -c:v copy -c:a aac -metadata author="{video_author}" -metadata year="{video_year}" output.mp4'
                 call(cmd, shell=False, creationflags=0x00000008)
                 remove("video_input.mp4")
                 remove("audio_input.mp4")
                 replace(self.current_folder + "\\output.mp4", self.music_folder + f"\\output.mp4")
                 rename(self.music_folder + f"\\output.mp4", self.music_folder + f"\\{filename}.mp4")
             else:
-                video = YouTube(video_url).streams.filter(file_extension="mp4", progressive=True).order_by("resolution")[-1]
-                video.download(output_path=self.music_folder)
+                YouTube(video_url).streams.filter(file_extension="mp4", progressive=True).order_by("resolution")[-1].download(output_path=self.music_folder)
 
     def download_playlist(self, video_url, audio_only, high_quality):
         for video_url in Playlist(video_url):
@@ -82,4 +84,3 @@ class VideoDownloader():
                 threads.append(t)
         else:
             self.download(video_url=video_url, audio_set=audio_set, high_quality_set=False)
-
