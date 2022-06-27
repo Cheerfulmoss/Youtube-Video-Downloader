@@ -12,32 +12,18 @@ class VideoDownloader():
         self.music_folder = music_folder
 
     def audio_only_download(self, video_url, download_path, for_merger=False):
-        # 140 is 128kbps, 130 is 48kbps
-        audio_bitrates_mp4 = [140, 139]
-
-        audio = YouTube(video_url).streams
-        for bitrate in audio_bitrates_mp4:
-            if bitrate in audio.itag_index.keys():
-                if for_merger:
-                    audio.get_by_itag(bitrate). \
-                        download(output_path=download_path, filename="audio_input.mp4")
-                else:
-                    audio.get_by_itag(bitrate).download(output_path=download_path)
-                return f"Audio bitrate preset: {bitrate}"
+        audio = YouTube(video_url).streams.\
+            filter(file_extension="mp4", type="audio", only_audio=True).order_by("abr")[-1]
+        if for_merger:
+            audio.download(output_path=download_path, filename="audio_input.mp4")
+        else:
+            audio.download(output_path=download_path)
+        return audio
 
     def video_only_download(self, video_url):
-        # Ordered from highest quality (2160p) to lowest quality (144p).
-        # When two values are used for a resolution it means they are using a different codex.
-        # values: (401, 2160p), (400, 1440p), (299/399, 1080p), (298/398, 720p),
-        # (135/397, 480p), (134/396, 360p), (133/395, 240p), (160/394, 144p).
-        video_resolutions = [401, 400, 299, 399, 298, 398, 135, 397, 134, 396, 133, 395, 160, 394]
-
-        video = YouTube(video_url).streams
-        for resolution in video_resolutions:
-            if resolution in video.itag_index.keys():
-                video.get_by_itag(resolution).\
-                    download(output_path=self.current_folder, filename="video_input.mp4")
-                return f"Video resolution preset: {resolution}"
+        video = YouTube(video_url).streams.filter(file_extension="mp4", type="video", only_video=True).order_by("resolution")[-1]
+        video.download(output_path=self.current_folder, filename="video_input.mp4")
+        return video
 
     def download_video(self, video_url, audio_only, high_quality):
         try:
@@ -68,16 +54,9 @@ class VideoDownloader():
                 replace(self.current_folder + "\\output.mp4", self.music_folder + f"\\output.mp4")
                 rename(self.music_folder + f"\\output.mp4", self.music_folder + f"\\{filename}.mp4")
             else:
-                # This is generally of lower quality or sometimes non-existent.
-                # (22, 720p), (18, 360p).
-                combined_audio_video = [22, 18]
-                video = YouTube(video_url).streams
-                for identifier in combined_audio_video:
-                    if identifier in video.itag_index.keys():
-                        video.get_by_itag(identifier). \
-                            download(output_path=self.music_folder)
-                        print(f"Combined audio and video tag: {identifier}")
-                        return
+                video = YouTube(video_url).streams.\
+                    filter(file_extension="mp4", progressive=True).order_by("resolution")[-1]
+                video.download(output_path=self.music_folder)
 
     def download_playlist(self, video_url, audio_only, high_quality):
         for video_url in Playlist(video_url):
@@ -105,3 +84,4 @@ class VideoDownloader():
                 threads.append(t)
         else:
             self.download(video_url=video_url, audio_set=audio_set, high_quality_set=False)
+
