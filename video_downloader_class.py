@@ -80,7 +80,8 @@ class VideoDownloader():
             threads = list()
             for index in range(num_threads):
                 t = Thread(target=self.list_input, args=(split_list[index], audio_set))
-                t.start()
                 threads.append(t)
+            for thread in threads:
+                thread.start()
         else:
             self.download(video_url=video_url, audio_set=audio_set, high_quality_set=False)
