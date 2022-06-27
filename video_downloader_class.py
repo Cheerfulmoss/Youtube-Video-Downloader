@@ -49,7 +49,7 @@ class VideoDownloader():
                 print(f"{bitrate}\n{resolution}")
                 if path.exists("output.mp4"):
                     remove("output.mp4")
-                cmd = f'ffmpeg -i video_input.mp4 -i audio_input.mp4 -c:v copy -c:a aac -metadata author="{video_author}" -metadata year="{video_year}" output.mp4'
+                cmd = f'ffmpeg -i video_input.mp4 -i audio_input.mp4 -c:v copy -c:a aac -metadata author="{video_author}" -metadata year="{video_year}" -metadata title="{filename}" output.mp4'
                 call(cmd, shell=False, creationflags=0x00000008)
                 remove("video_input.mp4")
                 remove("audio_input.mp4")
