@@ -12,8 +12,7 @@ class VideoDownloader():
         self.music_folder = music_folder
 
     def audio_only_download(self, video_url, download_path, for_merger=False):
-        audio = YouTube(video_url).streams.\
-            filter(file_extension="mp4", type="audio", only_audio=True).order_by("abr")[-1]
+        audio = YouTube(video_url).streams.filter(file_extension="mp4", type="audio", only_audio=True).order_by("abr")[-1]
         if for_merger:
             audio.download(output_path=download_path, filename="audio_input.mp4")
         else:
@@ -54,8 +53,7 @@ class VideoDownloader():
                 replace(self.current_folder + "\\output.mp4", self.music_folder + f"\\output.mp4")
                 rename(self.music_folder + f"\\output.mp4", self.music_folder + f"\\{filename}.mp4")
             else:
-                video = YouTube(video_url).streams.\
-                    filter(file_extension="mp4", progressive=True).order_by("resolution")[-1]
+                video = YouTube(video_url).streams.filter(file_extension="mp4", progressive=True).order_by("resolution")[-1]
                 video.download(output_path=self.music_folder)
 
     def download_playlist(self, video_url, audio_only, high_quality):
