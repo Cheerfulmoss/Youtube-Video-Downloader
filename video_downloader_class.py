@@ -89,7 +89,6 @@ class VideoDownloader:
                 print(f"Video {video_url} unavailable")
                 return
             self.download_video(video_object, audio_only=audio_set, high_quality=high_quality_set)
-            print(f"Finished downloading video: {YouTube(video_url).title}")
 
     def list_input(self, video_list, audio_only):
         for video_url in video_list:
