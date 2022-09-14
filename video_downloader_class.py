@@ -1,7 +1,7 @@
 from pytube import Playlist
 from pytube import YouTube
 from subprocess import call
-from os import getcwd, rename, replace, path
+from os import getcwd, remove, replace, path
 import os
 import string
 from threading import Thread
