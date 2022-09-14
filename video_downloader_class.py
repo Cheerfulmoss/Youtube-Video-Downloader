@@ -109,6 +109,7 @@ class VideoDownloader:
                     cmd = f'ffmpeg -i {self.intermediate_filename}.mp4 -i captions.srt -c copy -c:s mov_text {self.intermediate_filename}_captions.mp4'
                     call(cmd, shell=False, creationflags=0x00000008)
                     remove("captions.srt")
+                    remove("output.mp4")
                     captions_added = True
                 remove("video_input.mp4")
                 remove("audio_input.mp4")
@@ -116,16 +117,12 @@ class VideoDownloader:
                 if captions_added:
                     self.intermediate_filename = "output_captions"
                 n = 0
-                while os.path.exists(f"{self.music_folder}\\{self.intermediate_filename}-{n}.mp4"):
-                    n += 1
-                replace(self.current_folder + f"\\{self.intermediate_filename}.mp4", self.music_folder + f"\\{self.intermediate_filename}-{n}.mp4")
-                n = 0
                 if os.path.exists(self.music_folder + f"\\{filename}.mp4"):
-                    while os.path.exists(self.music_folder + f"\\{filename}_({n}).mp4"):
+                    while os.path.exists(self.music_folder + f"\\{filename}-({n}).mp4"):
                         n += 1
-                    rename(self.music_folder + f"\\{self.intermediate_filename}-{n}.mp4", self.music_folder + f"\\{filename}_({n}).mp4")
+                    replace(self.music_folder + f"\\{self.intermediate_filename}-{n}.mp4", self.music_folder + f"\\{filename}-({n}).mp4")
                 else:
-                    rename(self.music_folder + f"\\{self.intermediate_filename}-{n}.mp4", self.music_folder + f"\\{filename}.mp4")
+                    replace(self.music_folder + f"\\{self.intermediate_filename}-{n}.mp4", self.music_folder + f"\\{filename}.mp4")
                 print(f"{filename} downloaded: ffmpeg")
                 self.cleanup()
             else:
