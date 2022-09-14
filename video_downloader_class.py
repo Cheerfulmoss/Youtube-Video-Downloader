@@ -35,11 +35,18 @@ class VideoDownloader:
             print(f"Video {video_url} is a livestream")
             return False
 
-    def cleanup(self):
-        possible_files = ["audio_input.mp4", "video_input.mp4", "captions.srt", "output.mp4", "output_captions.mp4"]
+    def cleanup(self, degree=None, less_than=True):
+        possible_files = {"audio_input.mp4": 1, "video_input.mp4": 1, "captions.srt": 1, "output.mp4": 2,
+                          "output_captions.mp4": 3}
+        if degree is None:
+            degree = max(possible_files.values())
         for file in possible_files:
-            if path.exists(file):
-                remove(file)
+            if less_than:
+                if possible_files[file] <= degree and path.exists(file):
+                    remove(file)
+            else:
+                if possible_files[file] == degree and path.exists(file):
+                    remove(file)
 
     def audio_only_download(self, video_object, download_path, for_merger=False):
         audio = video_object.streams.filter(file_extension="mp4", type="audio", only_audio=True).order_by("abr")[-1]
@@ -108,11 +115,8 @@ class VideoDownloader:
                 if captions_exist:
                     cmd = f'ffmpeg -i {self.intermediate_filename}.mp4 -i captions.srt -c copy -c:s mov_text {self.intermediate_filename}_captions.mp4'
                     call(cmd, shell=False, creationflags=0x00000008)
-                    remove("captions.srt")
-                    remove("output.mp4")
                     captions_added = True
-                remove("video_input.mp4")
-                remove("audio_input.mp4")
+                self.cleanup(degree=2)
                 # this is due to FFMPEG not being able to rename in place
                 if captions_added:
                     self.intermediate_filename = "output_captions"
