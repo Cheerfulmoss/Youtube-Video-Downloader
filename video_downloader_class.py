@@ -5,137 +5,145 @@ from os import getcwd, remove, replace, path
 import os
 import string
 from threading import Thread
-from pytube.exceptions import VideoRegionBlocked, VideoPrivate, MembersOnly, AgeRestrictedError, LiveStreamError
 
 # Pytube file altered ( the captions file ) so captions can be generated
+
+
+# --- Cleans up the text from filenames or captions --- #
+def clean_text(text, is_filename: bool = False):
+    if is_filename:
+        filename = ""
+        disallowed_character_set = ["<", ">", ":", '"', "/", "\\", "|", "?", "*"]
+        for letter in text:
+            if letter not in disallowed_character_set:
+                filename = filename + letter
+        for n in range(20, 1, -1):
+            filename = filename.replace(" " * n, " ")
+        return filename
+    printable_characters = string.printable
+    clean_text = "".join(filter(lambda x: x in printable_characters, text))
+    for n in range(20, 1, -1):
+        clean_text = clean_text.replace(" " * n, " ")
+    return clean_text
+
+
+# --- Gets rid of the temp files --- #
+def cleanup(degree=None, less_than=True):
+    # --- Each value is to differentiate what to delete when cleaning up --- #
+    possible_files = {"test.mp4": 0, "audio_input.mp4": 1, "video_input.mp4": 1, "captions.srt": 1, "output.mp4": 2,
+                      "output_captions.mp4": 3}
+    if degree is None:
+        degree = max(possible_files.values())
+    for file in possible_files:
+        if less_than:
+            if possible_files[file] <= degree and path.exists(file):
+                remove(file)
+        else:
+            if possible_files[file] == degree and path.exists(file):
+                remove(file)
+
+
+def audio_only_download(video_object, download_path, for_merger=False):
+    # --- When ordering the possible downloads it goes from worst -> best --- #
+    audio = video_object.streams.filter(file_extension="mp4", type="audio", only_audio=True).order_by("abr")[-1]
+    if for_merger:
+        audio.download(output_path=download_path, filename="audio_input.mp4")
+    else:
+        audio.download(output_path=download_path)
+    return audio
+
+
+def captions_download(video_object):
+    # --- a.en is automatic english --- #
+    caption_codes = ["en", "a.en"]
+    captions_exist = False
+    subtitles = video_object.captions
+    for code in caption_codes:
+        try:
+            subtitle = subtitles[code].generate_srt_captions()
+            captions_exist = True
+            break
+        except KeyError:
+            pass
+    if not captions_exist:
+        return False
+    clean_subtitle = clean_text(text=subtitle)
+    srt_file = open("captions.srt", "w")
+    srt_file.write(clean_subtitle)
+    srt_file.close()
+    return True
+
+
+# --- Checks if the video can be downloaded --- #
+def video_check(video_url):
+    video_object = YouTube(video_url)
+    try:
+        video_object.streams.filter(file_extension="mp4", only_audio=True).order_by("abr")[0].download(
+            filename="test.mp4")
+        cleanup(degree=0, less_than=False)
+        return video_object
+    except KeyError:
+        return False
+
 
 class VideoDownloader:
     def __init__(self, music_folder):
         self.current_folder = getcwd()
         self.music_folder = music_folder
-        self.intermediate_filename = "output"
-        
-    def video_check(self, video_url):
-        try:
-            video_object = YouTube(video_url)
-            return video_object
-        except VideoRegionBlocked:
-            print(f"Video {video_url} region locked")
-            return False
-        except VideoPrivate:
-            print(f"Video {video_url} privated")
-            return False
-        except AgeRestrictedError:
-            print(f"Video {video_url} age restricted")
-            return False
-        except MembersOnly:
-            print(f"Video {video_url} members only")
-            return False
-        except LiveStreamError:
-            print(f"Video {video_url} is a livestream")
-            return False
-
-    def cleanup(self, degree=None, less_than=True):
-        possible_files = {"audio_input.mp4": 1, "video_input.mp4": 1, "captions.srt": 1, "output.mp4": 2,
-                          "output_captions.mp4": 3}
-        if degree is None:
-            degree = max(possible_files.values())
-        for file in possible_files:
-            if less_than:
-                if possible_files[file] <= degree and path.exists(file):
-                    remove(file)
-            else:
-                if possible_files[file] == degree and path.exists(file):
-                    remove(file)
-
-    def audio_only_download(self, video_object, download_path, for_merger=False):
-        audio = video_object.streams.filter(file_extension="mp4", type="audio", only_audio=True).order_by("abr")[-1]
-        if for_merger:
-            audio.download(output_path=download_path, filename="audio_input.mp4")
-        else:
-            audio.download(output_path=download_path)
-        return audio
 
     def video_only_download(self, video_object):
+        # --- When ordering the possible downloads it goes from worst -> best --- #
         video = video_object.streams.filter(file_extension="mp4", type="video", only_video=True).order_by("resolution")[-1]
         video.download(output_path=self.current_folder, filename="video_input.mp4")
         return video
-    
-    def captions_download(self, video_object):
-        caption_codes = ["en", "a.en"]
-        captions_exist = False
-        subtitles = video_object.captions
-        for code in caption_codes:
-            if subtitles[code] != KeyError:
-                # generate_srt_captions() is the edited part of the captions file 
-                subtitle = subtitles[code].generate_srt_captions()
-                captions_exist = True
-                break
-        if not captions_exist:
-            return False
-        printable_characters = string.printable
-        # removes problematic letters
-        clean_subtitle = "".join(filter(lambda x: x in printable_characters, subtitle))
-        srt_file = open("captions.srt", "w")
-        srt_file.write(clean_subtitle)
-        srt_file.close()
-        return True
 
+    # --- Despite the backwards naming this downloads both video and audio --- #
     def download_video(self, video_object, audio_only, high_quality):
         if audio_only:
-            self.audio_only_download(video_object, download_path=self.music_folder)
+            audio_only_download(video_object, download_path=self.music_folder)
             print(f"{video_object.title} downloaded: audio only")
-        else:
-            if high_quality:
-                self.cleanup()
-                video_name = str(video_object.title)
-                video_author = str(video_object.author)
-                video_year = str(video_object.publish_date)
-                # Video names sometimes have characters that aren't allowed in filenames
-                filename = ""
-                disallowed_character_set = ["<", ">", ":", '"', "/", "\\", "|", "?", "*"]
-                for letter in video_name:
-                    if letter not in disallowed_character_set:
-                        filename = filename + letter
-                # removes multiple spaces caused by character replacement above
-                for n in range(20, 1, -1):
-                    filename = filename.replace(" "*n, " ")
-                threads = list()
-                threads.append(Thread(target=self.audio_only_download, args=(video_object, self.current_folder, True)))
-                threads.append(Thread(target=self.video_only_download, args=(video_object,)))
-                # this is not multithreaded due to the need for a return value
-                captions_exist = self.captions_download(video_object=video_object)
-                for thread in threads:
-                    thread.start()
-                for thread in threads:
-                    thread.join()
-                cmd = f'ffmpeg -i video_input.mp4 -i audio_input.mp4 -c:v copy -c:a aac -metadata author="{video_author}" -metadata year="{video_year}" -metadata title="{filename}" {self.intermediate_filename}.mp4'
+            return
+        if high_quality:
+            intermediate_filename = "output"
+            cleanup()
+            video_name, video_author, video_year = str(video_object.title), str(video_object.author), str(video_object.publish_date)
+            # Video names sometimes have characters that aren't allowed in filenames
+            filename = clean_text(text=video_name, is_filename=True)
+            threads = list()
+            threads.append(Thread(target=audio_only_download, args=(video_object, self.current_folder, True)))
+            threads.append(Thread(target=self.video_only_download, args=(video_object,)))
+            captions_exist = captions_download(video_object=video_object)
+            for thread in threads:
+                thread.start()
+            for thread in threads:
+                thread.join()
+            cmd = f'ffmpeg -i video_input.mp4 -i audio_input.mp4 -c:v copy -c:a aac -metadata author="{video_author}" -metadata year="{video_year}" -metadata title="{filename}" {intermediate_filename}.mp4'
+            call(cmd, shell=False, creationflags=0x00000008)
+            captions_added = False
+            if captions_exist:
+                cmd = f'ffmpeg -i {intermediate_filename}.mp4 -i captions.srt -c copy -c:s mov_text {intermediate_filename}_captions.mp4'
                 call(cmd, shell=False, creationflags=0x00000008)
-                captions_added = False
-                if captions_exist:
-                    cmd = f'ffmpeg -i {self.intermediate_filename}.mp4 -i captions.srt -c copy -c:s mov_text {self.intermediate_filename}_captions.mp4'
-                    call(cmd, shell=False, creationflags=0x00000008)
-                    captions_added = True
-                self.cleanup(degree=2)
-                # this is due to FFMPEG not being able to rename in place
-                if captions_added:
-                    self.intermediate_filename = "output_captions"
-                n = 0
-                if os.path.exists(self.music_folder + f"\\{filename}.mp4"):
-                    while os.path.exists(self.music_folder + f"\\{filename}-({n}).mp4"):
-                        n += 1
-                    replace(self.music_folder + f"\\{self.intermediate_filename}-{n}.mp4", self.music_folder + f"\\{filename}-({n}).mp4")
-                else:
-                    replace(self.music_folder + f"\\{self.intermediate_filename}-{n}.mp4", self.music_folder + f"\\{filename}.mp4")
-                print(f"{filename} downloaded: ffmpeg")
-                self.cleanup()
-            else:
-                video_object.streams.filter(file_extension="mp4", progressive=True).order_by("resolution")[-1].download(output_path=self.music_folder)
-                print(f"{video_object.title} downloaded: progressive")
+                captions_added = True
+            cleanup(degree=2)
+            if captions_added:
+                intermediate_filename = "output_captions"
+            file_iterator = 0
+            if os.path.exists(f"{self.music_folder}\\{filename}.mp4"):
+                while os.path.exists(f"{self.music_folder}\\{filename}-({file_iterator}).mp4"):
+                    file_iterator += 1
+                replace(self.current_folder + f"\\{intermediate_filename}.mp4", self.music_folder + f"\\{filename}-({file_iterator}).mp4")
+                return
+            replace(self.current_folder + f"\\{intermediate_filename}.mp4", self.music_folder + f"\\{filename}.mp4")
+            print(f"{filename} downloaded: ffmpeg")
+            cleanup()
+            return
+        video_object.streams.filter(file_extension="mp4", progressive=True).order_by("resolution")[-1].download(
+            output_path=self.music_folder)
+        print(f"{video_object.title} downloaded: progressive")
 
     def download_playlist(self, url, audio_only, high_quality):
         for video_url in Playlist(url):
-            video_object = self.video_check(video_url=video_url)
+            video_object = video_check(video_url=video_url)
             if not video_object:
                 continue
             self.download_video(video_object, audio_only=audio_only, high_quality=high_quality)
@@ -145,14 +153,14 @@ class VideoDownloader:
             self.download_playlist(video_url, audio_only=audio_set, high_quality=high_quality_set)
             print(f"Finished downloading playlist: {Playlist(video_url).title}")
         else:
-            video_object = self.video_check(video_url=video_url)
+            video_object = video_check(video_url=video_url)
             if not video_object:
-                continue
+                return
             self.download_video(video_object, audio_only=audio_set, high_quality=high_quality_set)
 
     def list_input(self, video_list, audio_only):
         for video_url in video_list:
-            video_object = self.video_check(video_url=video_url)
+            video_object = video_check(video_url=video_url)
             if not video_object:
                 continue
             self.download_video(video_object, audio_only=audio_only, high_quality=False)
