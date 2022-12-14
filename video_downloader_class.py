@@ -124,7 +124,9 @@ class VideoDownloader:
                 cmd = f'ffmpeg -i {intermediate_filename}.mp4 -i captions.srt -c copy -c:s mov_text {intermediate_filename}_captions.mp4'
                 call(cmd, shell=False, creationflags=0x00000008)
                 captions_added = True
-            cleanup(degree=2)
+
+            cleanup(degree=1)
+
             if captions_added:
                 intermediate_filename = "output_captions"
             file_iterator = 0
