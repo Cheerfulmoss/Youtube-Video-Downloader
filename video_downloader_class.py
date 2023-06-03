@@ -1,182 +1,272 @@
-from pytube import Playlist
-from pytube import YouTube
-from subprocess import call
-from os import getcwd, remove, replace, path
 import os
-import string
-from threading import Thread
+import pytube
+from pytube import YouTube
+from pytube import Playlist
+from subprocess import call
+from os import remove, replace
 
-# Pytube file altered ( the captions file ) so captions can be generated
-
-
-# --- Cleans up the text from filenames or captions --- #
-def clean_text(text, is_filename: bool = False):
-    if is_filename:
-        filename = ""
-        disallowed_character_set = ["<", ">", ":", '"', "/", "\\", "|", "?", "*"]
-        for letter in text:
-            if letter not in disallowed_character_set:
-                filename = filename + letter
-        for n in range(20, 1, -1):
-            filename = filename.replace(" " * n, " ")
-        return filename
-    printable_characters = string.printable
-    clean_text = "".join(filter(lambda x: x in printable_characters, text))
-    for n in range(20, 1, -1):
-        clean_text = clean_text.replace(" " * n, " ")
-    return clean_text
+audio_ret = tuple[int, str, str, str, bool]
+video_ret = tuple[int, str, str, int, str, bool]
+prog_ret = tuple[int, str, str, int, str, str, bool]
+av_ret = tuple[audio_ret, video_ret]
+down_sing_ret = video_ret | audio_ret | prog_ret | av_ret
 
 
-# --- Gets rid of the temp files --- #
-def cleanup(degree=None, less_than=True):
-    # --- Each value is to differentiate what to delete when cleaning up --- #
-    possible_files = {"test.mp4": 0, "audio_input.mp4": 1, "video_input.mp4": 1, "captions.srt": 1, "output.mp4": 2,
-                      "output_captions.mp4": 3}
-    if degree is None:
-        degree = max(possible_files.values())
-    for file in possible_files:
-        if less_than:
-            if possible_files[file] <= degree and path.exists(file):
-                remove(file)
-        else:
-            if possible_files[file] == degree and path.exists(file):
-                remove(file)
+class PlaylistDownloader:
+    def __init__(self, url: str, download_dir: str | None,
+                 video_only: bool = False, audio_only: bool = False,
+                 progressive: bool = True, debug: bool = False) -> None:
+        self._playlist_obj = Playlist(url=url)
+        self._download_dir = download_dir
+        self._video_only = video_only
+        self._audio_only = audio_only
+        self._progressive = progressive
+        self._debug = debug
+        if self._debug:
+            print(f"{self.__class__.__name__}: Initialised\n"
+                  f"\t{self._playlist_obj=}\n"
+                  f"\t{self._download_dir=}\n"
+                  f"\t{self._video_only=}\n"
+                  f"\t{self._audio_only=}\n"
+                  f"\t{self._progressive=}\n"
+                  f"\t{self._debug=}"
+                  )
 
+    def download_all(self) -> tuple[down_sing_ret]:
+        if self._debug:
+            print(f"{self.__class__.__name__} - download_all: Started\n"
+                  "\tCalling helper function download_range")
+        all_ret = self.download_range()
+        if self._debug:
+            print(f"{self.__class__.__name__} - download_all: Complete!")
+        return all_ret
 
-def audio_only_download(video_object, download_path, for_merger=False):
-    # --- When ordering the possible downloads it goes from worst -> best --- #
-    audio = video_object.streams.filter(file_extension="mp4", type="audio", only_audio=True).order_by("abr")[-1]
-    if for_merger:
-        audio.download(output_path=download_path, filename="audio_input.mp4")
-    else:
-        audio.download(output_path=download_path)
-    return audio
-
-
-def captions_download(video_object):
-    # --- a.en is automatic english --- #
-    caption_codes = ["en", "a.en"]
-    captions_exist = False
-    subtitles = video_object.captions
-    for code in caption_codes:
-        try:
-            subtitle = subtitles[code].generate_srt_captions()
-            captions_exist = True
-            break
-        except KeyError:
-            pass
-    if not captions_exist:
-        return False
-    clean_subtitle = clean_text(text=subtitle)
-    srt_file = open("captions.srt", "w")
-    srt_file.write(clean_subtitle)
-    srt_file.close()
-    return True
-
-
-# --- Checks if the video can be downloaded --- #
-def video_check(video_url):
-    video_object = YouTube(video_url)
-    try:
-        video_object.streams.filter(file_extension="mp4", only_audio=True).order_by("abr")[0].download(
-            filename="test.mp4")
-        cleanup(degree=0, less_than=False)
-        return video_object
-    except KeyError:
-        return False
-
+    def download_range(self,
+                       start: int = 0,
+                       stop: int = None,
+                       step: int = 1) -> tuple[down_sing_ret]:
+        if self._debug:
+            print(f"{self.__class__.__name__} - download_range: Started\n"
+                  "\tStarting var checks")
+        if start < 0:
+            raise ValueError(f"start cannot be < 0, {start=}")
+        if stop is not None and stop > len(self._playlist_obj):
+            raise ValueError(f"stop cannot be greater than the length of the "
+                             f"playlist, {stop=}, "
+                             f"{len(self._playlist_obj)=}")
+        if step <= 0:
+            raise ValueError(f"step cannot be <= 0, {step=}")
+        if self._debug:
+            print("\tVar checks complete")
+        video_stats = list()
+        if stop is None:
+            stop = len(self._playlist_obj)
+        for i in range(start, stop, step):
+            if self._debug:
+                print("\tCalling class VideoDownloader.download_auto")
+            s_return = VideoDownloader(
+                url=self._playlist_obj[i], download_dir=self._download_dir,
+                video_only=self._video_only, audio_only=self._audio_only,
+                progressive=self._progressive,
+                debug=self._debug).download_auto()
+            if self._debug:
+                print(f"{self.__class__.__name__} - download_range: "
+                      f"Download complete\n"
+                      f"\tAppending return values to video_stats")
+            video_stats.append(s_return)
+        if self._debug:
+            print(f"{self.__class__.__name__} - download_range: Complete!")
+        return tuple(video_stats)
 
 class VideoDownloader:
-    def __init__(self, music_folder):
-        self.current_folder = getcwd()
-        self.music_folder = music_folder
+    AUDIO_NAME = "audio.webm"
+    VIDEO_NAME = "video.webm"
 
-    def video_only_download(self, video_object):
-        # --- When ordering the possible downloads it goes from worst -> best --- #
-        video = video_object.streams.filter(file_extension="mp4", type="video", only_video=True).order_by("resolution")[-1]
-        video.download(output_path=self.current_folder, filename="video_input.mp4")
-        return video
+    def __init__(self, url: str, download_dir: str | None,
+                 filename: str = None, video_only: bool = False,
+                 audio_only: bool = False, progressive: bool = True,
+                 debug: bool = False) -> None:
+        self._youtube_obj = YouTube(url=url)
+        self._download_dir = download_dir
+        self._filename = self._make_filename(filename)
+        self._video_only = video_only
+        self._audio_only = audio_only
+        self._progressive = progressive
+        self._debug = debug
+        if self._debug:
+            print(f"{self.__class__.__name__}: Initialised\n"
+                  f"\t{self._youtube_obj=}\n"
+                  f"\t{self._download_dir=}\n"
+                  f"\t{self._filename=}\n"
+                  f"\t{self._video_only=}\n"
+                  f"\t{self._audio_only=}\n"
+                  f"\t{self._progressive=}\n"
+                  )
 
-    # --- Despite the backwards naming this downloads both video and audio --- #
-    def download_video(self, video_object, audio_only, high_quality):
-        if audio_only:
-            audio_only_download(video_object, download_path=self.music_folder)
-            print(f"{video_object.title} downloaded: audio only")
-            return
-        if high_quality:
-            intermediate_filename = "output"
-            cleanup()
-            video_name, video_author, video_year = str(video_object.title), str(video_object.author), str(video_object.publish_date)
-            # Video names sometimes have characters that aren't allowed in filenames
-            filename = clean_text(text=video_name, is_filename=True)
-            threads = list()
-            threads.append(Thread(target=audio_only_download, args=(video_object, self.current_folder, True)))
-            threads.append(Thread(target=self.video_only_download, args=(video_object,)))
-            captions_exist = captions_download(video_object=video_object)
-            for thread in threads:
-                thread.start()
-            for thread in threads:
-                thread.join()
-            cmd = f'ffmpeg -i video_input.mp4 -i audio_input.mp4 -c:v copy -c:a aac -metadata author="{video_author}" -metadata year="{video_year}" -metadata title="{filename}" {intermediate_filename}.mp4'
-            call(cmd, shell=False, creationflags=0x00000008)
-            captions_added = False
-            if captions_exist:
-                cmd = f'ffmpeg -i {intermediate_filename}.mp4 -i captions.srt -c copy -c:s mov_text {intermediate_filename}_captions.mp4'
-                call(cmd, shell=False, creationflags=0x00000008)
-                captions_added = True
+    def _make_filename(self, filename: str | None) -> str:
+        """Makes a filename.
 
-            cleanup(degree=1)
+        Precondition:
+            If `filename` is not None it follows proper syntax for the
+            operating system.
 
-            if captions_added:
-                intermediate_filename = "output_captions"
-            file_iterator = 0
-            if os.path.exists(f"{self.music_folder}\\{filename}.mp4"):
-                while os.path.exists(f"{self.music_folder}\\{filename}-({file_iterator}).mp4"):
-                    file_iterator += 1
-                replace(self.current_folder + f"\\{intermediate_filename}.mp4", self.music_folder + f"\\{filename}-({file_iterator}).mp4")
-                return
-            replace(self.current_folder + f"\\{intermediate_filename}.mp4", self.music_folder + f"\\{filename}.mp4")
-            print(f"{filename} downloaded: ffmpeg")
-            cleanup()
-            return
-        video_object.streams.filter(file_extension="mp4", progressive=True).order_by("resolution")[-1].download(
-            output_path=self.music_folder)
-        print(f"{video_object.title} downloaded: progressive")
+        Parameters:
+            filename (str): The filename to save the video to.
+        """
+        if filename is not None:
+            return filename
+        filename = "".join(
+            char
+            for char in self._youtube_obj.title
+            if char not in ["<", ">", ":", '"', "/", "\\", "|", "?", '*']
+        )
+        for num_spaces in range(10, 0, -1):
+            filename.replace(" " * num_spaces, " ")
+        return filename
 
-    def download_playlist(self, url, audio_only, high_quality):
-        for video_url in Playlist(url):
-            video_object = video_check(video_url=video_url)
-            if not video_object:
-                continue
-            self.download_video(video_object, audio_only=audio_only, high_quality=high_quality)
+    def audio_download(
+            self,
+            filename: str = None, intermediate: bool = True
+    ) -> audio_ret:
+        """Downloads only the audio from a YouTube video.
 
-    def auto_download(self, video_url, audio_set, high_quality_set):
-        if "list=" in video_url:
-            self.download_playlist(video_url, audio_only=audio_set, high_quality=high_quality_set)
-            print(f"Finished downloading playlist: {Playlist(video_url).title}")
+        Returns:
+            A tuple containing (itag, mime type, audio bitrate, codec,
+            if it's progressive). Mime type says what type of file and if it's
+            audio or video (if the video is progressive it always returns as
+            video/filetype).
+        """
+        if self._debug:
+            print(f"{self.__class__.__name__} - audio_download: Started")
+        a_tube = self._youtube_obj.streams.filter(
+            only_audio=True, file_extension="webm").order_by("abr")[-1]
+        if self._debug:
+            print("\tHighest quality audio file found\n\t\t"
+                  f"{a_tube}\n\tDownload beginning...")
+        if intermediate:
+            a_tube.download(filename=filename)
         else:
-            video_object = video_check(video_url=video_url)
-            if not video_object:
-                return
-            self.download_video(video_object, audio_only=audio_set, high_quality=high_quality_set)
+            a_tube.download(self._download_dir, filename=filename)
+        if self._debug:
+            print("\tDownload complete!")
+        return (a_tube.itag, a_tube.mime_type, a_tube.abr,
+                a_tube.codecs[0], a_tube.is_progressive)
 
-    def list_input(self, video_list, audio_only):
-        for video_url in video_list:
-            video_object = video_check(video_url=video_url)
-            if not video_object:
-                continue
-            self.download_video(video_object, audio_only=audio_only, high_quality=False)
+    def video_download(
+            self,
+            filename: str = None, intermediate: bool = True
+    ) -> video_ret:
+        """Downloads only the video from a YouTube video.
 
-    def threaded_download(self, video_url, audio_set, num_threads=5):
-        if "list=" in video_url:
-            playlist_object = Playlist(video_url)
-            playlist_list = list(playlist_object)
-            split_list = [playlist_list[i::num_threads] for i in range(num_threads)]
-            threads = list()
-            for index in range(num_threads):
-                t = Thread(target=self.list_input, args=(split_list[index], audio_set))
-                threads.append(t)
-            for thread in threads:
-                thread.start()
+        Returns:
+            A tuple containing (itag, mime type, resolution, fps, codec,
+            if it's progressive). Mime type says what type of file and if it's
+            audio or video (if the video is progressive it always returns as
+            video/filetype).
+        """
+        if self._debug:
+            print(f"{self.__class__.__name__} - video_download: Started")
+        v_tube = self._youtube_obj.streams.filter(
+            only_video=True, file_extension="webm"
+        ).order_by("resolution")[-1]
+        if self._debug:
+            print("\tHighest quality video file found\n\t\t"
+                  f"{v_tube}\n\tDownload beginning...")
+        if intermediate:
+            v_tube.download(filename=filename)
         else:
-            self.auto_download(video_url=video_url, audio_set=audio_set, high_quality_set=False)
+            v_tube.download(self._download_dir, filename=filename)
+        if self._debug:
+            print("\tDownload complete!")
+        return (v_tube.itag, v_tube.mime_type,
+                v_tube.resolution, v_tube.fps, v_tube.codecs[0],
+                v_tube.is_progressive)
+
+    def progressive_download(
+            self,
+            filename: str = None, intermediate: bool = True
+    ) -> prog_ret:
+        """Downloads progressive videos (capped at 720p), which bundles
+            audio/video into one download.
+
+        Returns:
+            A tuple containing (itag, mime type, resolution, fps, aurdio
+            code, video codec, if it's progressive). Mime type says what type
+            of file and if it's audio or video (if the video is progressive
+            it always returns as video/filetype).
+        """
+        if self._debug:
+            print(f"{self.__class__.__name__} - progressive_download: Started")
+        p_tube = self._youtube_obj.streams.filter(
+            progressive=True).order_by("resolution")[-1]
+        if self._debug:
+            print("\tHighest quality progressive file found\n\t\t"
+                  f"{p_tube}\n\tDownload beginning...")
+        if intermediate:
+            p_tube.download(filename=filename)
+        else:
+            p_tube.download(self._download_dir, filename=filename)
+        if self._debug:
+            print("\tDownload complete!")
+        return (p_tube.itag, p_tube.mime_type,
+                p_tube.resolution, p_tube.fps, *p_tube.codecs,
+                p_tube.is_progressive)
+
+    def audio_video_download(self) -> av_ret:
+        if self._debug:
+            print(f"{self.__class__.__name__} - audio_video_download: Started")
+            print(f"{self.__class__.__name__} - audio_video_download: Calling "
+                  "audio_download")
+        a_tub = self.audio_download(filename=self.AUDIO_NAME)
+        if self._debug:
+            print(f"{self.__class__.__name__} - audio_video_download: Calling "
+                  f"video_download")
+        v_tub = self.video_download(filename=self.VIDEO_NAME)
+        if self._debug:
+            print(f"{self.__class__.__name__} - audio_video_download: "
+                  f"complete!")
+        return a_tub, v_tub
+
+    def download_auto(
+            self
+    ) -> down_sing_ret:
+        if self._debug:
+            print(f"{self.__class__.__name__} - download_auto: Started")
+        if self._video_only:
+            if self._debug:
+                print("\tVideo only mode")
+            return self.video_download(intermediate=False)
+        elif self._audio_only:
+            if self._debug:
+                print("\tAudio only mode")
+            return self.audio_download(intermediate=False)
+        elif self._progressive:
+            if self._debug:
+                print("\tProgressive mode")
+            return self.progressive_download(intermediate=False)
+        if self._debug:
+            print("\tAdaptive mode\n\tCalling audio_video_download")
+        av = self.audio_video_download()
+        if self._debug:
+            print(f"{self.__class__.__name__} - download_auto: "
+                  f"audio_video_download complete")
+        command = f"""
+        ffmpeg -i "{self.VIDEO_NAME}" -i "{self.AUDIO_NAME}" -c:v copy -c:a copy "{self._filename}.mp4"
+        """
+        if self._debug:
+            print(f"{self.__class__.__name__} - download_auto: "
+                  f"Calling ffmpeg | {command.strip()}")
+        call(command.strip(), shell=False, creationflags=0x00000008)
+        remove(self.AUDIO_NAME)
+        remove(self.VIDEO_NAME)
+        if self._debug:
+            print(f"{self.__class__.__name__} - download_auto: "
+                  f"Moving output file")
+        replace(
+            f"{self._filename}.mp4",
+            f"{self._download_dir}\\{self._filename}.mp4"
+        )
+        if self._debug:
+            print(f"{self.__class__.__name__} - download_auto: Complete!")
+        return av
+    
