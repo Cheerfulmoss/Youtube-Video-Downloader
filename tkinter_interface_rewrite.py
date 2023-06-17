@@ -25,7 +25,7 @@ class UserInterface:
 
     def _setup_interface(self) -> None:
         self._master.geometry("320x160")
-        self._master.minsize(width=320, height=140)
+        self._master.minsize(width=320, height=160)
         self._master.resizable(width=False, height=False)
         self._master.title("Downloader")
 
