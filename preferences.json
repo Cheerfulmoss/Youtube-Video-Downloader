@@ -1,1 +1,7 @@
-{"download_folder": "Download Directory"}
+{
+    "download_folder": "D:/OneDrive/Music/Corpse",
+    "audio_state": false,
+    "ffmpeg_state": true,
+    "threaded_state": true,
+    "thread_count": 10
+}
