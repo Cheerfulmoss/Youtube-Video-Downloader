@@ -1,3 +1,12 @@
+"""
+Interface for the video downloader.
+Alexander Burow - 2 September 2023
+
+License: GPL3
+
+Basic error checking.
+"""
+
 from video_downloader import VideoDownloader
 from video_downloader import PlaylistDownloader
 import tkinter as tk
@@ -99,7 +108,7 @@ class UserInterface:
     def _change_thread_count(self, increase: bool) -> None:
         if increase and self._thread_count < 50:
             self._thread_count += 1
-        elif self._thread_count > 0:
+        elif self._thread_count > 5:
             self._thread_count -= 1
         self._thread_count_label.config(
             text=f"Threads: {self._thread_count}"
@@ -127,6 +136,10 @@ class UserInterface:
             self._ffmpeg_state.set(settings.get("ffmpeg_state", False))
             self._threaded_state.set(settings.get("threaded_state", False))
             self._thread_count = settings.get("thread_count", 5)
+            if self._thread_count > 50:
+                self._thread_count = 50
+            elif self._thread_count < 5:
+                self._thread_count = 5
             self._thread_count_label.config(
                 text=f"Threads: {self._thread_count}"
             )
@@ -137,6 +150,12 @@ class UserInterface:
     def _save_settings(self) -> None:
         self.change_bg_colour("green")
         with open(self._settings, "w") as settings_raw:
+
+            if self._thread_count > 50:
+                self._thread_count = 50
+            elif self._thread_count < 5:
+                self._thread_count = 5
+
             settings = {
                 "download_folder": self._directory_entry.get(),
                 "audio_state": self._audio_state.get(),

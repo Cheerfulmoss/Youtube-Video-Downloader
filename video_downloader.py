@@ -1,3 +1,12 @@
+"""
+Driver for the video downloader.
+Alexander Burow - 2 September 2023
+
+License: GPL3
+
+Basic error checking.
+"""
+
 import os
 import threading
 import pytube
@@ -515,7 +524,7 @@ class VideoDownloader:
         if self._debug:
             print(f"{self.__class__.__name__} - download_auto: "
                   f"Calling ffmpeg | {command.strip()}")
-        
+
         call(command.strip(), shell=False, creationflags=0x00000008)
         remove(self._audio_name)
         remove(self._video_name)
@@ -527,3 +536,12 @@ class VideoDownloader:
         if self._debug:
             print(f"{self.__class__.__name__} - download_auto: Complete!")
         return av
+
+
+if __name__ == "__main__":
+    url = "https://youtu.be/1fmh-xCuCf4"
+    VideoDownloader(
+        url=url,
+        download_dir="D:\\OneDrive\\Music\\Corpse - Audio Only",
+        audio_only=True,
+        progressive=False, debug=True).download_auto()
